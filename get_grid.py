@@ -1,3 +1,5 @@
+import tempfile
+import os.path
 from io import BytesIO
 import numpy as np
 import rasterio
@@ -8,17 +10,8 @@ from affine import Affine
 import rasterio.mask
 
 proj_list = [
-    '+proj=lcc',
-    '+lat_0=25',
-    '+lon_0=265',
-    '+lat_1=25',
-    '+lat_2=25',
-    '+x_0=0',
-    '+y_0=0',
-    '+R=6371200',
-    '+units=m',
-    '+no_defs'
-]
+    '+proj=lcc', '+lat_0=25', '+lon_0=265', '+lat_1=25', '+lat_2=25', '+x_0=0',
+    '+y_0=0', '+R=6371200', '+units=m', '+no_defs']
 proj_str = ' '.join(proj_list)
 crs = pyproj.CRS.from_proj4(proj_str)
 
@@ -29,6 +22,7 @@ d = 0
 e = -2539.70
 f = 3232111.71
 aff = Affine(a, b, c, d, e, f)
+
 
 # Click
 # arg: bbox
@@ -57,9 +51,15 @@ def intersect_with_grid(int_coords):
     """
     Args:
         - int_coords: projected coordinates to be used for intersection
+
+    Returns:
+        GeoDataFrame with three columns:
+        - x: x coordinate of NDFD grid. A higher x seems to move down, towards the south?
+        - y: y coordinate of NDFD grid. A higher y seems to move right, towards the east?
+        - geometry: geometry of grid cell (reprojected back into WGS84)
     """
-    fname = create_grid()
-    with rasterio.Env(), rasterio.open(fname) as src:
+    grid_path = create_grid()
+    with rasterio.Env(), rasterio.open(grid_path) as src:
         intersected_cells = set()
         for int_coord in int_coords:
             intersected_cells.add(src.index(*int_coord))
@@ -67,25 +67,25 @@ def intersect_with_grid(int_coords):
         # For each of the cells, generate its box
         cell_boxes = []
         for x, y in list(intersected_cells):
-            cell_boxes.append([x, y, box(*src.xy(x, y, 'll'), *src.xy(x, y, 'ur'))])
+            cell_boxes.append([
+                x, y, box(*src.xy(x, y, 'll'), *src.xy(x, y, 'ur'))])
 
     grid = gpd.GeoDataFrame(cell_boxes, columns=['x', 'y', 'geometry'], crs=crs)
-    from keplergl_quickvis import Visualize
-    Visualize(grid.to_crs(epsg=4326))
-    grid.to_crs(epsg=4326)
+    return grid.to_crs(epsg=4326)
 
-    cells_dict
-
-    x, y = list(intersected_cells)[0]
-
-    src.xy(x, y, 'll')
-    src.xy(x, y, 'ur')
-    point = Point(src.xy(x, y))
-    gpd.GeoDataFrame(geometry=[point], crs=crs).to_crs(epsg=4326)
-    src.xy(0, y)
-    return intersected_cells
 
 def create_grid():
+    """Create raster file conforming to NDFD 2.5km CONUS grid
+
+    The easiest way to find the necessary constants is to find a
+    correctly-formatted GRIB file, and run:
+    ```
+    with rasterio.Env(), rasterio.open('YEUZ98_KWBN_201701010519') as r:
+        print(r.bounds)
+        print(r.transform)
+        print(r.crs)
+    ```
+    """
     # In NDFD coordinates, it spans from the minx to maxx with 2145 horizontal
     # cells
     # If spans from miny to maxy in 1377 vertical cells.
@@ -97,10 +97,17 @@ def create_grid():
     # set third dimension to 0 for this example, with same dimensions as X and Y
     Z = X * 0
 
-    # TODO use tempfile
-    new_dataset = rasterio.open('test.tif', 'w', driver='GTiff', height=Z.shape[0], width=Z.shape[1], count=1, dtype=Z.dtype, crs=crs, transform=aff)
+    path = os.path.join(tempfile.mkdtemp(), 'grid.tif')
+    new_dataset = rasterio.open(
+        path,
+        'w',
+        driver='GTiff',
+        height=Z.shape[0],
+        width=Z.shape[1],
+        count=1,
+        dtype=Z.dtype,
+        crs=crs,
+        transform=aff)
     new_dataset.write(Z, 1)
     new_dataset.close()
-    return 'test.tif'
-
-
+    return path
