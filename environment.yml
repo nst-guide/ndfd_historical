@@ -5,6 +5,7 @@ dependencies:
   - affine
   - click
   - geopandas
+  - lxml
   - numpy
   - pandas
   - pyarrow
