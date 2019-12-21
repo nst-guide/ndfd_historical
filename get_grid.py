@@ -1,4 +1,3 @@
-import pandas as pd
 import os.path
 import re
 import tempfile
@@ -6,6 +5,7 @@ import tempfile
 import click
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pyproj
 import rasterio
 import rasterio.mask
