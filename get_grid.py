@@ -82,6 +82,9 @@ def intersect_with_grid(int_coords, fill=False):
     """
     Args:
         - int_coords: projected coordinates to be used for intersection
+        - fill: whether to include the interior of the intersected cells. I.e.
+          if the coords of a box are provided and intersect with 0,0 and 4,4,
+          this would include the entire 25-cell grid
 
     Returns:
         GeoDataFrame with three columns:
@@ -95,6 +98,9 @@ def intersect_with_grid(int_coords, fill=False):
         for int_coord in int_coords:
             intersected_cells.add(src.index(*int_coord))
 
+        if fill:
+            intersected_cells = fill_cells(intersected_cells)
+
         # For each of the cells, generate its box
         cell_boxes = []
         for x, y in list(intersected_cells):
@@ -103,6 +109,18 @@ def intersect_with_grid(int_coords, fill=False):
 
     grid = gpd.GeoDataFrame(cell_boxes, columns=['x', 'y', 'geometry'], crs=crs)
     return grid.to_crs(epsg=4326)
+
+
+def fill_cells(cells):
+    """Fill interior of given cells so that there are no holes.
+
+    Args:
+        - cells: tuples of (x, y) that represent existing cell intersections
+    """
+    # Generate cells covering all of min/max bounds, then intersect
+    # I do this with fstopo already
+    # The question is how to generate a polygon out of the current cells
+    pass
 
 
 def create_grid():
