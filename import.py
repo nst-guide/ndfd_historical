@@ -1,6 +1,3 @@
-"""
-Download and import
-"""
 import re
 import tarfile
 from datetime import datetime
@@ -23,14 +20,15 @@ from tqdm import tqdm
 @click.option(
     '-g',
     '--grid-path',
-    required=False,
+    required=True,
     default=None,
     type=click.Path(
         exists=True, file_okay=True, dir_okay=False, resolve_path=True),
     help='Path to grid GeoJSON file.')
 @click.option(
+    '-d',
     '--data-dir',
-    required=False,
+    required=True,
     default=None,
     type=click.Path(file_okay=False, dir_okay=True, resolve_path=True),
     help='Root of directory where to save extracted data.')
@@ -47,6 +45,10 @@ def main(grid_path, data_dir, url):
     # Load grid
     grid = gpd.read_file(grid_path)
 
+    # Create data_dir if it doesn't yet exist
+    data_dir = Path(data_dir)
+    data_dir.mkdir(exist_ok=True, parents=True)
+
     # For each tarball url, download and import it
     for tar_url in urls:
         with TemporaryDirectory() as dirpath:
@@ -55,7 +57,7 @@ def main(grid_path, data_dir, url):
             download_url(tar_url, local_path)
 
             with tarfile.open(local_path) as tf:
-                import_tarfile(tf, grid, data_dir)
+                import_tarfile(tf=tf, grid=grid, data_dir=data_dir)
 
 
 def import_tarfile(tf, grid, data_dir):
@@ -141,9 +143,9 @@ def import_tarfile(tf, grid, data_dir):
 
             new_data['fcst_time'] = fcst_timestamp
             new_data['valid_time'] = valid_timestamp
-            f'{name}.parquet'
-            new_data.memory_usage(deep=True).sum()
-            new_data.to_parquet('test.parquet')
+
+            out_path = data_dir / f'{name}.parquet'
+            new_data.to_parquet(out_path, index=False)
 
 
 def get_extract_urls(url):
