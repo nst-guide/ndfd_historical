@@ -1,3 +1,4 @@
+import pandas as pd
 import os.path
 import re
 import tempfile
@@ -29,7 +30,6 @@ aff = Affine(a, b, c, d, e, f)
 # If you wanted to do bbox, you could get the cells of the four corners, and then include everything between them
 # Something similar for polygons? Where you query all the cells of the exterior,
 # and assume that inner cells are included. (I.e. no polygons with holes.)
-# TODO: allow --file to be provided more than once
 @click.command()
 @click.option(
     '--bbox',
@@ -37,15 +37,13 @@ aff = Affine(a, b, c, d, e, f)
     default=None,
     type=str,
     help='Bounding box to use for finding grid intersections.')
-@click.option(
-    '--file',
+@click.argument(
+    'file',
     required=False,
+    nargs=-1,
     type=click.Path(
         exists=True, file_okay=True, dir_okay=False, resolve_path=True),
-    default=None,
-    help=
-    'Geospatial file with geometry to use for finding grid intersections. Note that at this time only LineStrings are permitted. Must be a file format that GeoPandas can read.'
-)
+    default=None)
 def main(bbox, file):
     if (bbox is None) and (file is None):
         raise ValueError('Either bbox or file must be provided')
@@ -63,7 +61,9 @@ def main(bbox, file):
         int_gdf = intersect_with_grid(gdf.geometry[0].exterior.coords)
 
     if file:
-        gdf = gpd.read_file(file).to_crs(crs=crs)
+        gdfs = [gpd.read_file(f) for f in file]
+        gdf = gpd.GeoDataFrame(
+            pd.concat(gdfs, sort=False), crs=gdfs[0].crs).to_crs(crs=crs)
 
         # Get all coordinates
         all_coords = []
@@ -134,3 +134,7 @@ def create_grid():
                        transform=aff) as new_dataset:
         new_dataset.write(Z, 1)
     return path
+
+
+if __name__ == '__main__':
+    main()
