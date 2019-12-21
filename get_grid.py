@@ -1,6 +1,8 @@
 import os.path
+import re
 import tempfile
 
+import click
 import geopandas as gpd
 import numpy as np
 import pyproj
@@ -24,32 +26,59 @@ f = 3232111.71
 aff = Affine(a, b, c, d, e, f)
 
 
-# Click
-# arg: bbox
-# arg: geometry file
-# For now, only linestrings
 # If you wanted to do bbox, you could get the cells of the four corners, and then include everything between them
 # Something similar for polygons? Where you query all the cells of the exterior,
 # and assume that inner cells are included. (I.e. no polygons with holes.)
-def main():
-    # Load bbox/file
-    #
-    gdf = gpd.read_file(
-        '/Users/kyle/github/mapping/nst-guide/create-database/data/pct/line/halfmile/CA_Sec_A_tracks.geojson'
-    )
-    trk_proj = gdf.to_crs(crs)
+# TODO: allow --file to be provided more than once
+@click.command()
+@click.option(
+    '--bbox',
+    required=False,
+    default=None,
+    type=str,
+    help='Bounding box to use for finding grid intersections.')
+@click.option(
+    '--file',
+    required=False,
+    type=click.Path(
+        exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    default=None,
+    help=
+    'Geospatial file with geometry to use for finding grid intersections. Note that at this time only LineStrings are permitted. Must be a file format that GeoPandas can read.'
+)
+def main(bbox, file):
+    if (bbox is None) and (file is None):
+        raise ValueError('Either bbox or file must be provided')
 
-    # Get all coords and put into list
-    all_coords = []
-    for line in trk_proj.geometry:
-        for coord in line.coords:
-            all_coords.append((coord[0], coord[1]))
+    if (bbox is not None) and (file is not None):
+        raise ValueError('Either bbox or file must be provided')
 
-    intersected_cells = intersect_with_grid(all_coords)
-    intersected_cells.to_file('cells.geojson', driver='GeoJSON')
+    if bbox:
+        raise NotImplementedError(
+            "Haven't figured out how to fill cell intersections from bbox")
+        # bbox = '-120.4906,37.9606,-119.6604,38.7561'
+        bbox = tuple(map(float, re.split(r'[, ]+', bbox)))
+        gdf = gpd.GeoDataFrame(geometry=[box(*bbox)], crs={'init': 'epsg:4326'})
+        gdf = gdf.to_crs(crs=crs)
+        int_gdf = intersect_with_grid(gdf.geometry[0].exterior.coords)
+
+    if file:
+        gdf = gpd.read_file(file).to_crs(crs=crs)
+
+        # Get all coordinates
+        all_coords = []
+        for line in gdf.geometry:
+            msg = 'only LineString geometry currently supported'
+            assert line.type == 'LineString', msg
+            for coord in line.coords:
+                all_coords.append((coord[0], coord[1]))
+
+        int_gdf = intersect_with_grid(all_coords)
+
+    print(int_gdf.to_json())
 
 
-def intersect_with_grid(int_coords):
+def intersect_with_grid(int_coords, fill=False):
     """
     Args:
         - int_coords: projected coordinates to be used for intersection
