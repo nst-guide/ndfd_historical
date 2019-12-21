@@ -98,16 +98,8 @@ def create_grid():
     Z = X * 0
 
     path = os.path.join(tempfile.mkdtemp(), 'grid.tif')
-    new_dataset = rasterio.open(
-        path,
-        'w',
-        driver='GTiff',
-        height=Z.shape[0],
-        width=Z.shape[1],
-        count=1,
-        dtype=Z.dtype,
-        crs=crs,
-        transform=aff)
-    new_dataset.write(Z, 1)
-    new_dataset.close()
+    with rasterio.open(path, 'w', driver='GTiff', height=Z.shape[0],
+                       width=Z.shape[1], count=1, dtype=Z.dtype, crs=crs,
+                       transform=aff) as new_dataset:
+        new_dataset.write(Z, 1)
     return path
