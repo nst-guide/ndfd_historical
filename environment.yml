@@ -1,0 +1,13 @@
+name: ndfd_historical
+channels:
+  - conda-forge
+dependencies:
+  - affine
+  - click
+  - geopandas
+  - numpy
+  - pandas
+  - pyproj
+  - rasterio
+  - shapely
+  - tqdm
