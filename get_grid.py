@@ -1,13 +1,13 @@
-import tempfile
 import os.path
-from io import BytesIO
-import numpy as np
-import rasterio
+import tempfile
+
 import geopandas as gpd
-from shapely.geometry import Point, box
+import numpy as np
 import pyproj
-from affine import Affine
+import rasterio
 import rasterio.mask
+from affine import Affine
+from shapely.geometry import box
 
 proj_list = [
     '+proj=lcc', '+lat_0=25', '+lon_0=265', '+lat_1=25', '+lat_2=25', '+x_0=0',
@@ -34,7 +34,9 @@ aff = Affine(a, b, c, d, e, f)
 def main():
     # Load bbox/file
     #
-    gdf = gpd.read_file('/Users/kyle/github/mapping/nst-guide/create-database/data/pct/line/halfmile/CA_Sec_A_tracks.geojson')
+    gdf = gpd.read_file(
+        '/Users/kyle/github/mapping/nst-guide/create-database/data/pct/line/halfmile/CA_Sec_A_tracks.geojson'
+    )
     trk_proj = gdf.to_crs(crs)
 
     # Get all coords and put into list
@@ -44,7 +46,7 @@ def main():
             all_coords.append((coord[0], coord[1]))
 
     intersected_cells = intersect_with_grid(all_coords)
-    pass
+    intersected_cells.to_file('cells.geojson', driver='GeoJSON')
 
 
 def intersect_with_grid(int_coords):
