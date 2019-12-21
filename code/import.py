@@ -53,7 +53,7 @@ def main(grid_path, data_dir, url):
     for tar_url in urls:
         with TemporaryDirectory() as dirpath:
             # Download tar_url to that directory
-            local_path = Path(dirpath.name) / Path(tar_url).name
+            local_path = Path(dirpath) / Path(tar_url).name
             download_url(tar_url, local_path)
 
             with tarfile.open(local_path) as tf:
