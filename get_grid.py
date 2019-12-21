@@ -6,25 +6,11 @@ import click
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import pyproj
 import rasterio
 import rasterio.mask
-from affine import Affine
 from shapely.geometry import box
 
-proj_list = [
-    '+proj=lcc', '+lat_0=25', '+lon_0=265', '+lat_1=25', '+lat_2=25', '+x_0=0',
-    '+y_0=0', '+R=6371200', '+units=m', '+no_defs']
-proj_str = ' '.join(proj_list)
-crs = pyproj.CRS.from_proj4(proj_str)
-
-a = 2539.70
-b = 0
-c = -2764474.35
-d = 0
-e = -2539.70
-f = 3232111.71
-aff = Affine(a, b, c, d, e, f)
+import constants
 
 
 # If you wanted to do bbox, you could get the cells of the four corners, and then include everything between them
@@ -57,13 +43,14 @@ def main(bbox, file):
         # bbox = '-120.4906,37.9606,-119.6604,38.7561'
         bbox = tuple(map(float, re.split(r'[, ]+', bbox)))
         gdf = gpd.GeoDataFrame(geometry=[box(*bbox)], crs={'init': 'epsg:4326'})
-        gdf = gdf.to_crs(crs=crs)
+        gdf = gdf.to_crs(crs=constants.crs)
         int_gdf = intersect_with_grid(gdf.geometry[0].exterior.coords)
 
     if file:
         gdfs = [gpd.read_file(f) for f in file]
         gdf = gpd.GeoDataFrame(
-            pd.concat(gdfs, sort=False), crs=gdfs[0].crs).to_crs(crs=crs)
+            pd.concat(gdfs, sort=False),
+            crs=gdfs[0].crs).to_crs(crs=constants.crs)
 
         # Get all coordinates
         all_coords = []
@@ -107,7 +94,8 @@ def intersect_with_grid(int_coords, fill=False):
             cell_boxes.append([
                 x, y, box(*src.xy(x, y, 'll'), *src.xy(x, y, 'ur'))])
 
-    grid = gpd.GeoDataFrame(cell_boxes, columns=['x', 'y', 'geometry'], crs=crs)
+    grid = gpd.GeoDataFrame(
+        cell_boxes, columns=['x', 'y', 'geometry'], crs=constants.crs)
     return grid.to_crs(epsg=4326)
 
 
@@ -148,8 +136,9 @@ def create_grid():
 
     path = os.path.join(tempfile.mkdtemp(), 'grid.tif')
     with rasterio.open(path, 'w', driver='GTiff', height=Z.shape[0],
-                       width=Z.shape[1], count=1, dtype=Z.dtype, crs=crs,
-                       transform=aff) as new_dataset:
+                       width=Z.shape[1], count=1, dtype=Z.dtype,
+                       crs=constants.crs,
+                       transform=constants.aff) as new_dataset:
         new_dataset.write(Z, 1)
     return path
 
