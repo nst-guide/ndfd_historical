@@ -8,17 +8,34 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.request import urlretrieve
 
+import click
 import geopandas as gpd
 import pandas as pd
 import rasterio
 from rasterio.io import MemoryFile
 from rasterio.windows import Window
 
-# url for HAS extract to download
-# path to grid.geojson
-url = 'HAS011421999'
-grid_path = 'grid.geojson'
-def main(url, grid_path, data_dir):
+
+# url = 'HAS011421999'
+# grid_path = 'grid.geojson'
+@click.command()
+@click.option(
+    '-g',
+    '--grid-path',
+    required=False,
+    default=None,
+    type=click.Path(
+        exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    help='Path to grid GeoJSON file.')
+@click.option(
+    '--data-dir',
+    required=False,
+    default=None,
+    type=click.Path(file_okay=False, dir_okay=True, resolve_path=True),
+    help='Root of directory where to save extracted data.')
+@click.argument('url', required=True, nargs=1, type=str)
+def main(grid_path, data_dir, url):
+    """Download and import NDFD GRIB files"""
     if not url.startswith('HAS'):
         raise ValueError('url should start with HAS, e.g. HAS011421999')
 
