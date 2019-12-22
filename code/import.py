@@ -122,21 +122,25 @@ def import_tarfile(tf, grid, data_dir):
 
     for name in names:
         with rasterio.Env(), tf.extractfile(name) as f, MemoryFile(
-                f.read()) as memfile, memfile.open() as dataset:
+                f.read()) as memfile:
 
-            # Expanded context manger for debugging
-            # f = tf.extractfile(name)
-            # memfile = MemoryFile(f.read())
-            # dataset = memfile.open()
-
-            # Read data of predefined window into array
-            # Using window means least reading necessary compared to reading for
-            # entire CONUS
-            # Theoretically since the grid cells I'm interested in aren't an
-            # even box, you could read less data by iterating over each cell as
-            # its own window, but that might have higher overhead, and this is
-            # simpler
-            arr = dataset.read(1, window=window)
+            try:
+                with memfile.open() as dataset:
+                    # Read data of predefined window into array Using window
+                    # means least reading necessary compared to reading for
+                    # entire CONUS
+                    #
+                    # Theoretically since the grid cells I'm interested in
+                    # aren't an even box, you could read less data by iterating
+                    # over each cell as its own window, but that might have
+                    # higher overhead, and this is simpler
+                    arr = dataset.read(1, window=window)
+                    fcst_time_str = dataset.tags(1)['GRIB_REF_TIME']
+                    valid_time_str = dataset.tags(1)['GRIB_VALID_TIME']
+            except rasterio.errors.RasterioIOError as e:
+                print(f'Unable to open {name} out of tarball')
+                print(e)
+                continue
 
             # Select cell values according to indices adjusted for window extent
             # This syntax is basically equivalent to zip() over the x/y cols
@@ -150,12 +154,10 @@ def import_tarfile(tf, grid, data_dir):
 
             # Timestamp of when forecast was made
             time_regex = r'^(\d+)\s*sec\s*UTC$'
-            fcst_time_str = dataset.tags(1)['GRIB_REF_TIME']
             fcst_time_int = int(re.match(time_regex, fcst_time_str).group(1))
             fcst_timestamp = datetime.utcfromtimestamp(fcst_time_int)
 
             # Timestamp of when forecast was valid for
-            valid_time_str = dataset.tags(1)['GRIB_VALID_TIME']
             valid_time_int = int(re.match(time_regex, valid_time_str).group(1))
             valid_timestamp = datetime.utcfromtimestamp(valid_time_int)
 
