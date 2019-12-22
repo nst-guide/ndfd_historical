@@ -9,13 +9,14 @@ import click
 import geopandas as gpd
 import pandas as pd
 import rasterio
+from dateutil.parser import parse
 from rasterio.io import MemoryFile
 from rasterio.windows import Window
 from tqdm import tqdm
 
 
 # url = 'HAS011421999'
-# grid_path = 'grid.geojson'
+# grid_path = '../grid.geojson'
 @click.command()
 @click.option(
     '-g',
@@ -32,8 +33,22 @@ from tqdm import tqdm
     default=None,
     type=click.Path(file_okay=False, dir_okay=True, resolve_path=True),
     help='Root of directory where to save extracted data.')
+@click.option(
+    '-s',
+    '--start-date',
+    required=False,
+    default=None,
+    type=str,
+    help='First date of tarball to download')
+@click.option(
+    '-e',
+    '--end-date',
+    required=False,
+    default=None,
+    type=str,
+    help='Last date of tarball to download')
 @click.argument('urls', required=True, nargs=-1, type=str)
-def main(grid_path, data_dir, urls):
+def main(grid_path, data_dir, start_date, end_date, urls):
     """Download and import NDFD GRIB files"""
     all_tar_urls = []
     for url in urls:
@@ -42,7 +57,7 @@ def main(grid_path, data_dir, urls):
 
         # Query webpage to find individual tarball URLs in extract
         url = 'https://www1.ncdc.noaa.gov/pub/has/' + url
-        tar_urls = get_extract_urls(url)
+        tar_urls = get_extract_urls(url, start_date, end_date)
         all_tar_urls.extend(tar_urls)
 
     # Load grid
@@ -151,7 +166,7 @@ def import_tarfile(tf, grid, data_dir):
             new_data.to_parquet(out_path, index=False)
 
 
-def get_extract_urls(url):
+def get_extract_urls(url, start_date, end_date):
     """Find urls of individual tarballs within extract
     """
     dfs = pd.read_html(url)
@@ -162,6 +177,16 @@ def get_extract_urls(url):
     df = df[['Name']]
     df = df[df['Name'].notnull()]
     df = df[df['Name'] != 'Parent Directory']
+
+    df['date'] = pd.to_datetime(df['Name'].str[14:22])
+    if start_date is not None:
+        start_date = parse(start_date)
+        df = df[df['date'] >= start_date]
+
+    if end_date is not None:
+        end_date = parse(end_date)
+        df = df[df['date'] <= end_date]
+
     return (url.rstrip('/') + '/' + df['Name']).values
 
 
