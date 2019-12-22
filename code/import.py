@@ -32,15 +32,18 @@ from tqdm import tqdm
     default=None,
     type=click.Path(file_okay=False, dir_okay=True, resolve_path=True),
     help='Root of directory where to save extracted data.')
-@click.argument('url', required=True, nargs=1, type=str)
-def main(grid_path, data_dir, url):
+@click.argument('urls', required=True, nargs=-1, type=str)
+def main(grid_path, data_dir, urls):
     """Download and import NDFD GRIB files"""
-    if not url.startswith('HAS'):
-        raise ValueError('url should start with HAS, e.g. HAS011421999')
+    all_tar_urls = []
+    for url in urls:
+        if not url.startswith('HAS'):
+            raise ValueError('url should start with HAS, e.g. HAS011421999')
 
-    # Query webpage to find individual tarball URLs in extract
-    url = 'https://www1.ncdc.noaa.gov/pub/has/' + url
-    urls = get_extract_urls(url)
+        # Query webpage to find individual tarball URLs in extract
+        url = 'https://www1.ncdc.noaa.gov/pub/has/' + url
+        tar_urls = get_extract_urls(url)
+        all_tar_urls.extend(tar_urls)
 
     # Load grid
     grid = gpd.read_file(grid_path)
@@ -50,7 +53,7 @@ def main(grid_path, data_dir, url):
     data_dir.mkdir(exist_ok=True, parents=True)
 
     # For each tarball url, download and import it
-    for tar_url in urls:
+    for tar_url in all_tar_urls:
         with TemporaryDirectory() as dirpath:
             # Download tar_url to that directory
             local_path = Path(dirpath) / Path(tar_url).name
