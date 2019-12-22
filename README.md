@@ -17,14 +17,59 @@ The NDFD is a grid that spans the following box:
 [ndfd_srs]: https://www.weather.gov/mdl/ndfd_srs
 [ndfd_home]: https://www.ncdc.noaa.gov/data-access/model-data/model-datasets/national-digital-forecast-database-ndfd
 
-## Plan
+## Code
 
-- Download large sections of bulk historical forecasts for a single WMO category at a time.
-- It appears that there are NDFD files saved hourly, but forecasts for 3 to 24 hour periods. Use the file closest to the forecast valid time.
-<!-- - Update index file to keep track of which files have been imported. -->
-- Extract numerical data from grid, save it as a Numpy file (.npy) to S3
-- After all the data for a given WMO category is extracted, create distributions of the measurement type for day/week/month of interest.
-- With small data files with distributions of interest, set up code to map a clicked point to a gridded cell.
+1. Find grid indices to keep; using `get_grid.py`.
+2. Request data downloads in bulk [here][ndfd_bulk_wmo]
+3. Use the grid indices to keep the minimal data required from downloads; using `import.py`
+
+### `get_grid.py`
+
+Find NDFD grid indices that intersect with provided geometry. For now, the
+file(s) provided geometry must contain only LineStrings. I find the intersecting
+grid cells by taking every coordinate, projecting it to the NDFD grid
+projection, and then seeing which cells are covered. In order to support Polygon
+geometries or a bounding box, I need to also fill the holes created by only
+getting the intersection of the polygon's exterior's coordinates. I'm not sure
+how to do that yet.
+
+This program outputs a GeoJSON file with `x` and `y` NDFD coordinates and the
+geometry of that cell in WGS84.
+
+I run this with `python code/get_grid.py line.geojson > grid.geojson`.
+
+```
+> python code/get_grid.py --help
+Usage: get_grid.py [OPTIONS] [FILE]...
+
+Options:
+  --help       Show this message and exit.
+```
+
+### `import.py`
+
+Given an NDFD bulk export, iteratively download each tarball, select only the
+first forecast and the cells in the provided grid file, and save to a data
+folder.
+
+I run this with:
+```
+python code/import.py -g grid.geojson -d data/raw HAS011421999
+```
+where `HAS011421999` is an example of a bulk export identifier from NOAA.
+
+```
+> python code/import.py --help
+Usage: import.py [OPTIONS] URL
+
+  Download and import NDFD GRIB files
+
+Options:
+  -g, --grid-path FILE      Path to grid GeoJSON file.  [required]
+  -d, --data-dir DIRECTORY  Root of directory where to save extracted data.
+                            [required]
+  --help                    Show this message and exit.
+```
 
 ## NDFD Notes
 
@@ -102,35 +147,6 @@ The temporal resolution of temperature data is 3 hours, but reports are created 
 From [ECMWF](https://confluence.ecmwf.int/display/CKB/How+to+read+or+decode+a+GRIB+file):
 
 > `dataDate` and `dataTime` indicate the date/time we forecast _from_. `validityDate` and `validityTime` indicate the date/time we forecast _for_.
-
-## Reading GRIB data
-
-```py
-import pygrib
-
-grbs = pygrib.open('ds.temp.bin')
-# Use .message() to call a layer, a single forecast period
-# Each GRIB file has many layers. Just pick the layer closest in time
-grb = grbs.message(1)
-
-# Now grb has a lot of metadata:
-print(grb.keys())
-
-# To get the data itself, call .data()
-# If you call .data() without arguments, it retrieves the entire dataset
-# Alternatively you can pass a bounding box
-print(grb.data())
-
-# The output is a tuple with three 2D Numpy arrays
-# The first is an array with the parameter of interest
-print(grb.data()[0])
-
-# The second is a 2D array with latitudes, and the third is a 2D array with
-# longitudes. I'm not sure exactly why these are 2D arrays instead of 1D, but
-# it's probably a projection issue.
-print(grb.data()[1])
-print(grb.data()[2])
-```
 
 ## Glossary
 
