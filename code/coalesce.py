@@ -61,11 +61,11 @@ def main(data_dir, out_dir):
                 data = load_files(matching['path'])
 
                 # Save to temp directory
-                path = Path(tempdir.name) / (str(month) + '.parquet')
+                path = Path(tempdir) / (str(month) + '.parquet')
                 data.to_parquet(path, index=False)
 
             # Load all files in temp directory
-            combined_df = load_files(Path(tempdir.name).glob('*.parquet'))
+            combined_df = load_files(Path(tempdir).glob('*.parquet'))
 
             # Write to out_dir
             path = Path(out_dir) / (fcst_type.lower() + '.parquet')
