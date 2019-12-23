@@ -1,6 +1,7 @@
 import os.path
 import re
 import tempfile
+from time import sleep
 
 import click
 import geopandas as gpd
@@ -8,6 +9,7 @@ import numpy as np
 import pandas as pd
 import rasterio
 import rasterio.mask
+import requests
 from shapely.geometry import box
 
 import constants
@@ -23,6 +25,11 @@ import constants
     default=None,
     type=str,
     help='Bounding box to use for finding grid intersections.')
+@click.option(
+    '--elevations',
+    is_flag=True,
+    default=False,
+    help='Whether to ping NWS API for elevations of each grid square.')
 @click.argument(
     'file',
     required=False,
@@ -30,7 +37,7 @@ import constants
     type=click.Path(
         exists=True, file_okay=True, dir_okay=False, resolve_path=True),
     default=None)
-def main(bbox, file):
+def main(bbox, elevations, file):
     if (bbox is None) and (file is None):
         raise ValueError('Either bbox or file must be provided')
 
@@ -61,6 +68,36 @@ def main(bbox, file):
                 all_coords.append((coord[0], coord[1]))
 
         int_gdf = intersect_with_grid(all_coords)
+
+    # If requested, find elevation of each grid square centroid from NWS
+    # This requires two API calls: once for getting the forecast url, a second
+    # time for getting a forecast. The elevation value is only included in the
+    # forecast output.
+    if elevations:
+        centroids = int_gdf.centroid
+        headers = {'accept': 'application/geo+json'}
+        elevations = []
+        for centroid in centroids:
+            lon, lat = centroid.coords[0]
+            url = f'https://api.weather.gov/points/{lat},{lon}'
+
+            sleep(0.1)
+            point_res = requests.get(url, headers=headers)
+            # Points in Mexico/Canada return 404
+            if point_res.status_code == 404:
+                elevations.append(np.nan)
+                continue
+            forecast_url = point_res.json()['properties']['forecast']
+
+            sleep(0.1)
+            forecast_res = requests.get(forecast_url, headers=headers)
+            ele = forecast_res.json()['properties']['elevation']
+
+            assert ele['unitCode'] == 'unit:m', 'Elevation not in meters'
+            value = ele['value']
+            elevations.append(value)
+
+        int_gdf['ele'] = elevations
 
     print(int_gdf.to_json())
 
