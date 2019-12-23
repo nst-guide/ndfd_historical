@@ -1,4 +1,19 @@
+"""
+coalesce.py: Extract the most recent forecast for each valid time
+
+Take raw extracted files and create minimal, but not summarized dataset from
+them. The `import.py` script downloads files and exports all data for
+intersecting cells. But that still has data for every first forecast for these
+specific cells.
+
+For example, for max temperature, forecasts are often made hourly, but are valid
+for a _day_. So I might have 24 rows corresponding to a single valid_time. This
+script is for extracting just the most recent forecast for each valid time. This
+should then be one row per cell-forecast time, which should be able to be
+directly summarized off of.
+"""
 import re
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 import pandas as pd
@@ -16,9 +31,12 @@ import pandas as pd
 data_dir = Path('../data/ygu/')
 
 
-def main(data_dir):
+def main(data_dir, out_dir):
     files = data_dir.iterdir()
     names = create_file_names_df(files)
+
+    # Create out_dir
+    Path(out_dir).mkdir(exist_ok=True, parents=True)
 
     # Find unique month periods for all files
     months = names['date'].dt.to_period('M').unique()
@@ -26,14 +44,32 @@ def main(data_dir):
     fcst_types = names['prefix'].unique()
 
     # Create generator to loop over product of months and fcst_types
-    gen = ((month, fcst_type) for month in months for fcst_type in fcst_types)
-    for month, fcst_type in gen:
-        matching = names[(month.start_time <= names['date'])
-                         & (names['date'] <= month.end_time)]
-        matching = matching[matching['prefix'] == fcst_type]
+    for fcst_type in fcst_types:
+        # Will write each month temporarily into a temp directory, and then load
+        # them one last time at the end when creating a single file per fcst
+        # type
+        with TemporaryDirectory() as tempdir:
+            for month in months:
+                matching = names[(month.start_time <= names['date'])
+                                 & (names['date'] <= month.end_time)]
+                matching = matching[matching['prefix'] == fcst_type]
 
-        if len(matching) > 0:
-            data = load_files(matching['path'])
+                if len(matching) <= 0:
+                    continue
+
+                # Load the data files
+                data = load_files(matching['path'])
+
+                # Save to temp directory
+                path = Path(tempdir.name) / (str(month) + '.parquet')
+                data.to_parquet(path, index=False)
+
+            # Load all files in temp directory
+            combined_df = load_files(Path(tempdir.name).glob('*.parquet'))
+
+            # Write to out_dir
+            path = Path(out_dir) / (fcst_type.lower() + '.parquet')
+            combined_df.to_parquet(path, index=False)
 
 
 def load_files(paths):
