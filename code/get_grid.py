@@ -91,6 +91,9 @@ def main(bbox, elevations, file):
 
             sleep(0.1)
             forecast_res = requests.get(forecast_url, headers=headers)
+            if point_res.status_code == 404:
+                elevations.append(np.nan)
+                continue
             ele = forecast_res.json()['properties']['elevation']
 
             assert ele['unitCode'] == 'unit:m', 'Elevation not in meters'
