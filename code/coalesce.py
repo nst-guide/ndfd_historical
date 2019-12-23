@@ -11,28 +11,45 @@ for a _day_. So I might have 24 rows corresponding to a single valid_time. This
 script is for extracting just the most recent forecast for each valid time. This
 should then be one row per cell-forecast time, which should be able to be
 directly summarized off of.
+
+General idea:
+1. Load each month for each forecast element
+2. For each month:
+    1. Remove missing values, i.e. 9999 (is this the same missing value for all datasets?)
+    2. Take last forecast time for each valid_time within each x/y box
+    3. Save to temporary dataset
+3. Load all months for a single forecast element. Take last forecast time for
+each valid_time within each x/y box, save to final dataset.
 """
 import re
-from tempfile import TemporaryDirectory
+from itertools import chain
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+import click
 import pandas as pd
 
-# 1. Load each month for each forecast element
-# 2. For each month:
-#   1. Remove missing values, i.e. 9999 (is this the same missing value for all datasets?)
-#   2. Take last forecast time for each valid_time within each x/y box
-#       a = sdf.sort_values(['x', 'y', 'valid_time', 'fcst_time'])
-#       result = a.drop_duplicates(['x', 'y', 'valid_time'], keep='last')
-#   3. Save to new dataset?
-# 3. Load all days
-#   - Take last forecast time for each valid_time within each x/y box
 
-data_dir = Path('../data/ygu/')
-
-
+@click.command()
+@click.option(
+    '-d',
+    '--data-dir',
+    required=True,
+    multiple=True,
+    type=click.Path(
+        exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+    help='Path to existing data directories.')
+@click.option(
+    '-o',
+    '--out-dir',
+    required=True,
+    type=click.Path(file_okay=False, dir_okay=True, resolve_path=True),
+    help='Root of directory where to save extracted data.')
 def main(data_dir, out_dir):
-    files = data_dir.iterdir()
+    # Create generator for file paths in each data_dir, and then chain them
+    # together to create a single iterator for all files across all provided
+    # data dirs
+    files = chain(*[d.iterdir() for d in data_dir])
     names = create_file_names_df(files)
 
     # Create out_dir
@@ -142,4 +159,3 @@ def create_file_names_df(files):
 
 if __name__ == '__main__':
     main()
-
